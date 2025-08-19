@@ -1,205 +1,187 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Times Tables Practice (Hands Free)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <title>Times Tables Practice 🎤 (Hands Free)</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
-      background: #f4f4f9;
-    }
-    h1 { margin-bottom: 10px; }
-    .tables { margin: 20px 0; }
-    label { margin: 0 8px; }
-    .hidden { display: none; }
-    .question { font-size: 2em; margin: 20px 0; }
-    .score { font-weight: bold; margin-top: 20px; }
-    #wrongAnswers { margin-top: 20px; text-align: left; display: inline-block; }
-    #wrongAnswers li { margin: 5px 0; color: red; }
-    #voiceStatus { margin-top: 10px; font-style: italic; }
+    body { font-family: Arial, sans-serif; text-align: center; padding: 40px; background: #f6f6fa; }
+    h1 { font-size: 2em; margin-bottom: 20px; }
+    #quiz, #summary { display: none; }
+    .question { font-size: 2em; margin: 20px; }
+    .status { margin: 15px; font-size: 1.2em; }
+    .wrong { color: red; }
+    .correct { color: green; }
+    ul { text-align: left; display: inline-block; margin-top: 20px; }
   </style>
 </head>
 <body>
   <h1>Times Tables Practice 🎤 (Hands Free)</h1>
 
   <div id="setup">
-    <h3>Select tables:</h3>
-    <div class="tables" id="tables"></div>
-
-    <h3>Number of questions:</h3>
-    <input type="number" id="numQuestions" value="10" min="1" max="144" />
-
-    <br><br>
+    <p>Select which tables to practice:</p>
+    <div id="tables"></div>
+    <p>
+      Number of questions:
+      <input id="numQuestions" type="number" value="10" min="1" max="100">
+    </p>
     <button onclick="startGame()">Start Practice</button>
   </div>
 
-  <div id="quiz" class="hidden">
+  <div id="quiz">
     <div class="question" id="question"></div>
-    <div id="voiceStatus"></div>
-    <div class="score" id="progress"></div>
+    <div class="status" id="status"></div>
+    <div id="progress"></div>
   </div>
 
-  <div id="result" class="hidden">
-    <h2>All done!</h2>
+  <div id="summary">
+    <h2>Practice Complete ✅</h2>
     <p id="finalScore"></p>
-    <h3>Questions you got wrong:</h3>
-    <ul id="wrongAnswers"></ul>
-    <button onclick="restart()">Try Again</button>
+    <div id="wrongAnswers"></div>
+    <button onclick="location.reload()">Play Again</button>
   </div>
 
-  <script>
-    // Build checkboxes for tables 1–12
-    const tablesDiv = document.getElementById('tables');
-    for (let i = 1; i <= 12; i++) {
-      const label = document.createElement('label');
-      label.innerHTML = `<input type="checkbox" value="${i}" checked> ${i}`;
-      tablesDiv.appendChild(label);
-    }
+<script>
+const numberWords = {
+  "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
+  "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+  "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+  "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+  "eighteen": 18, "nineteen": 19, "twenty": 20,
+  "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60,
+  "seventy": 70, "eighty": 80, "ninety": 90
+};
 
-    let selectedTables = [];
-    let numQuestions = 10;
-    let questions = [];
-    let current = 0;
-    let score = 0;
-    let wrongAnswers = [];
-    let recognition;
+let recognition;
+let selectedTables = [];
+let questions = [];
+let current = 0;
+let score = 0;
+let wrong = [];
 
-    function startGame() {
-      selectedTables = Array.from(document.querySelectorAll('#tables input:checked')).map(cb => parseInt(cb.value));
-      numQuestions = parseInt(document.getElementById('numQuestions').value);
+// Setup checkboxes
+window.onload = () => {
+  const tablesDiv = document.getElementById('tables');
+  for (let i = 1; i <= 12; i++) {
+    tablesDiv.innerHTML += `<label><input type="checkbox" value="${i}">${i}</label> `;
+  }
+};
 
-      if (selectedTables.length === 0) {
-        alert('Please select at least one table.');
-        return;
-      }
+function startGame() {
+  selectedTables = Array.from(document.querySelectorAll('#tables input:checked'))
+    .map(cb => parseInt(cb.value));
+  const numQuestions = parseInt(document.getElementById('numQuestions').value);
 
-      // Build pool of questions
-      let pool = [];
-      for (let a of selectedTables) {
-        for (let b = 1; b <= 12; b++) {
-          if (selectedTables.includes(b)) {
-            if (a <= b) {
-              pool.push({a, b, answer: a * b});
-            }
-          } else {
-            pool.push({a, b, answer: a * b});
-          }
-        }
-      }
+  if (selectedTables.length === 0) {
+    alert('Please select at least one table.');
+    return;
+  }
 
-      pool = pool.sort(() => Math.random() - 0.5);
-      questions = pool.slice(0, numQuestions);
-
-      current = 0;
-      score = 0;
-      wrongAnswers = [];
-
-      document.getElementById('setup').classList.add('hidden');
-      document.getElementById('quiz').classList.remove('hidden');
-      showQuestion();
-    }
-
-    function showQuestion() {
-      const q = questions[current];
-      const flip = Math.random() < 0.5;
-      q.displayA = flip ? q.a : q.b;
-      q.displayB = flip ? q.b : q.a;
-
-      const questionText = `${q.displayA} × ${q.displayB}`;
-      document.getElementById('question').innerText = `${questionText} = ?`;
-      document.getElementById('progress').innerText = `Question ${current+1} of ${numQuestions} | Score: ${score}`;
-      document.getElementById('voiceStatus').innerText = "🎙️ Listening...";
-
-      // Speak the question
-      speak(`What is ${q.displayA} times ${q.displayB}?`, () => {
-        startVoice();
-      });
-    }
-
-    function submitAnswer(userAnswer) {
-      const q = questions[current];
-
-      if (!isNaN(userAnswer) && userAnswer === q.answer) {
-        score++;
+  // Build pool of unique questions
+  let pool = [];
+  for (let a of selectedTables) {
+    for (let b = 1; b <= 12; b++) {
+      if (selectedTables.includes(b)) {
+        if (a <= b) pool.push({a, b, answer: a * b});
       } else {
-        wrongAnswers.push({
-          a: q.displayA,
-          b: q.displayB,
-          correct: q.answer,
-          given: isNaN(userAnswer) ? "blank" : userAnswer
-        });
-      }
-
-      current++;
-      if (current < numQuestions) {
-        showQuestion();
-      } else {
-        endGame();
+        pool.push({a, b, answer: a * b});
       }
     }
+  }
 
-    function endGame() {
-      document.getElementById('quiz').classList.add('hidden');
-      document.getElementById('result').classList.remove('hidden');
-      document.getElementById('finalScore').innerText = `You scored ${score} out of ${numQuestions}.`;
+  // Shuffle
+  pool = pool.sort(() => Math.random() - 0.5);
+  questions = pool.slice(0, numQuestions);
 
-      const list = document.getElementById('wrongAnswers');
-      list.innerHTML = "";
-      if (wrongAnswers.length === 0) {
-        list.innerHTML = "<li>None 🎉</li>";
-      } else {
-        wrongAnswers.forEach(item => {
-          list.innerHTML += `<li>${item.a} × ${item.b} = ${item.correct} (you answered: ${item.given})</li>`;
-        });
-      }
+  current = 0; score = 0; wrong = [];
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('quiz').style.display = 'block';
 
-      speak(`All done! You scored ${score} out of ${numQuestions}.`);
-    }
+  initSpeechRecognition();
+  showQuestion();
+}
 
-    function restart() {
-      document.getElementById('result').classList.add('hidden');
-      document.getElementById('setup').classList.remove('hidden');
-    }
+function showQuestion() {
+  if (current >= questions.length) { endGame(); return; }
+  const q = questions[current];
+  const flip = Math.random() < 0.5;
+  const text = flip ? `${q.a} × ${q.b} = ?` : `${q.b} × ${q.a} = ?`;
+  document.getElementById('question').textContent = text;
+  document.getElementById('status').textContent = "🎤 Listening for your answer...";
+  document.getElementById('progress').textContent = `Question ${current+1} of ${questions.length} | Score: ${score}`;
+}
 
-    // 🎤 Voice Recognition (Web Speech API)
-    function startVoice() {
-      if (!('webkitSpeechRecognition' in window)) {
-        alert("Sorry, your browser doesn’t support speech recognition.");
-        return;
-      }
+function checkAnswer(answer) {
+  const q = questions[current];
+  if (answer === q.answer) {
+    document.getElementById('status').textContent = "✅ Correct!";
+    document.getElementById('status').className = "status correct";
+    score++;
+  } else {
+    document.getElementById('status').textContent = `❌ Wrong, correct answer was ${q.answer}`;
+    document.getElementById('status').className = "status wrong";
+    wrong.push({q: `${q.a} × ${q.b}`, correct: q.answer, you: answer});
+  }
+  current++;
+  setTimeout(showQuestion, 1500);
+}
 
-      if (recognition) recognition.stop();
-      recognition = new webkitSpeechRecognition();
-      recognition.lang = "en-US";
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
+function endGame() {
+  document.getElementById('quiz').style.display = 'none';
+  document.getElementById('summary').style.display = 'block';
+  document.getElementById('finalScore').textContent = `Final Score: ${score} / ${questions.length}`;
+  
+  if (wrong.length > 0) {
+    let list = "<h3>Review Mistakes:</h3><ul>";
+    wrong.forEach(w => {
+      list += `<li>${w.q} = ${w.correct} (you said: ${w.you})</li>`;
+    });
+    list += "</ul>";
+    document.getElementById('wrongAnswers').innerHTML = list;
+  } else {
+    document.getElementById('wrongAnswers').innerHTML = "<p>🎉 Perfect score!</p>";
+  }
 
-      recognition.start();
+  if (recognition) recognition.stop();
+}
 
-      recognition.onresult = function(event) {
-        const transcript = event.results[0][0].transcript.trim();
-        const number = parseInt(transcript);
-        document.getElementById('voiceStatus').innerText = `You said: "${transcript}"`;
-        submitAnswer(number);
-      };
+function initSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Speech Recognition not supported in this browser.");
+    return;
+  }
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = false;
+  recognition.lang = "en-US";
 
-      recognition.onerror = function() {
-        document.getElementById('voiceStatus').innerText = "⚠️ Couldn’t understand, try again.";
-        // Try again automatically
-        startVoice();
-      };
-    }
+  recognition.onresult = (event) => {
+    const transcript = event.results[event.results.length-1][0].transcript.toLowerCase().trim();
+    console.log("Heard:", transcript);
+    const num = parseTranscript(transcript);
+    if (num !== null) checkAnswer(num);
+    else document.getElementById('status').textContent = "⚠️ Couldn't understand, try again.";
+  };
 
-    // 🔊 Text-to-speech
-    function speak(text, callback) {
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "en-US";
-      utter.onend = callback;
-      speechSynthesis.speak(utter);
-    }
-  </script>
+  recognition.onerror = (e) => {
+    console.error("Speech recognition error:", e);
+  };
+
+  recognition.start();
+}
+
+function parseTranscript(t) {
+  // Try plain number
+  if (!isNaN(parseInt(t))) return parseInt(t);
+
+  // Convert number words
+  let parts = t.split(/[\s-]+/);
+  let total = 0;
+  for (let p of parts) {
+    if (numberWords[p] !== undefined) total += numberWords[p];
+  }
+  return total > 0 ? total : null;
+}
+</script>
 </body>
 </html>
