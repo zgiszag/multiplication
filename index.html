@@ -52,7 +52,7 @@
     <div class="tables" id="tables"></div>
 
     <h3>Number of questions:</h3>
-    <input type="number" id="numQuestions" value="10" min="1" max="100" />
+    <input type="number" id="numQuestions" value="10" min="1" max="144" />
 
     <br><br>
     <button onclick="startGame()">Start Practice</button>
@@ -73,6 +73,7 @@
   </div>
 
   <script>
+    // Build checkboxes for tables 1–12
     const tablesDiv = document.getElementById('tables');
     for (let i = 1; i <= 12; i++) {
       const label = document.createElement('label');
@@ -95,12 +96,26 @@
         return;
       }
 
-      questions = [];
-      for (let i = 0; i < numQuestions; i++) {
-        let a = selectedTables[Math.floor(Math.random() * selectedTables.length)];
-        let b = Math.floor(Math.random() * 12) + 1;
-        questions.push({a, b, answer: a * b});
+      // 🔹 Build a pool of unique questions
+      let pool = [];
+      for (let a of selectedTables) {
+        for (let b = 1; b <= 12; b++) {
+          if (selectedTables.includes(b)) {
+            // Ensure uniqueness: only one of (a,b) or (b,a)
+            if (a <= b) {
+              pool.push({a, b, answer: a * b});
+            }
+          } else {
+            pool.push({a, b, answer: a * b});
+          }
+        }
       }
+
+      // 🔹 Shuffle the pool
+      pool = pool.sort(() => Math.random() - 0.5);
+
+      // 🔹 Pick the requested number of questions (or all if fewer available)
+      questions = pool.slice(0, numQuestions);
 
       current = 0;
       score = 0;
@@ -112,7 +127,13 @@
 
     function showQuestion() {
       const q = questions[current];
-      document.getElementById('question').innerText = `${q.a} × ${q.b} = ?`;
+
+      // Randomize order of a and b when displaying
+      const flip = Math.random() < 0.5;
+      const displayA = flip ? q.a : q.b;
+      const displayB = flip ? q.b : q.a;
+
+      document.getElementById('question').innerText = `${displayA} × ${displayB} = ?`;
       document.getElementById('answer').value = '';
       document.getElementById('answer').focus();
       document.getElementById('progress').innerText = `Question ${current+1} of ${numQuestions} | Score: ${score}`;
