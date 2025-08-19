@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Times Tables Practice</title>
+  <title>Times Tables Practice (Hands Free)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
@@ -11,50 +11,19 @@
       padding: 20px;
       background: #f4f4f9;
     }
-    h1 {
-      margin-bottom: 10px;
-    }
-    .tables {
-      margin: 20px 0;
-    }
-    label {
-      margin: 0 8px;
-    }
-    .hidden {
-      display: none;
-    }
-    .question {
-      font-size: 2em;
-      margin: 20px 0;
-    }
-    input[type="number"] {
-      font-size: 1.2em;
-      padding: 5px;
-      width: 100px;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 10px;
-      font-size: 1em;
-      cursor: pointer;
-    }
-    .score {
-      font-weight: bold;
-      margin-top: 20px;
-    }
-    #wrongAnswers {
-      margin-top: 20px;
-      text-align: left;
-      display: inline-block;
-    }
-    #wrongAnswers li {
-      margin: 5px 0;
-      color: red;
-    }
+    h1 { margin-bottom: 10px; }
+    .tables { margin: 20px 0; }
+    label { margin: 0 8px; }
+    .hidden { display: none; }
+    .question { font-size: 2em; margin: 20px 0; }
+    .score { font-weight: bold; margin-top: 20px; }
+    #wrongAnswers { margin-top: 20px; text-align: left; display: inline-block; }
+    #wrongAnswers li { margin: 5px 0; color: red; }
+    #voiceStatus { margin-top: 10px; font-style: italic; }
   </style>
 </head>
 <body>
-  <h1>Times Tables Practice</h1>
+  <h1>Times Tables Practice 🎤 (Hands Free)</h1>
 
   <div id="setup">
     <h3>Select tables:</h3>
@@ -69,9 +38,7 @@
 
   <div id="quiz" class="hidden">
     <div class="question" id="question"></div>
-    <input type="number" id="answer" placeholder="Your answer" onkeydown="if(event.key==='Enter') submitAnswer()" />
-    <br>
-    <button onclick="submitAnswer()">Submit</button>
+    <div id="voiceStatus"></div>
     <div class="score" id="progress"></div>
   </div>
 
@@ -98,6 +65,7 @@
     let current = 0;
     let score = 0;
     let wrongAnswers = [];
+    let recognition;
 
     function startGame() {
       selectedTables = Array.from(document.querySelectorAll('#tables input:checked')).map(cb => parseInt(cb.value));
@@ -108,7 +76,7 @@
         return;
       }
 
-      // 🔹 Build a pool of unique questions
+      // Build pool of questions
       let pool = [];
       for (let a of selectedTables) {
         for (let b = 1; b <= 12; b++) {
@@ -122,10 +90,7 @@
         }
       }
 
-      // 🔹 Shuffle the pool
       pool = pool.sort(() => Math.random() - 0.5);
-
-      // 🔹 Pick the requested number of questions
       questions = pool.slice(0, numQuestions);
 
       current = 0;
@@ -139,21 +104,23 @@
 
     function showQuestion() {
       const q = questions[current];
-
-      // Randomize order of a and b
       const flip = Math.random() < 0.5;
       q.displayA = flip ? q.a : q.b;
       q.displayB = flip ? q.b : q.a;
 
-      document.getElementById('question').innerText = `${q.displayA} × ${q.displayB} = ?`;
-      document.getElementById('answer').value = '';
-      document.getElementById('answer').focus();
+      const questionText = `${q.displayA} × ${q.displayB}`;
+      document.getElementById('question').innerText = `${questionText} = ?`;
       document.getElementById('progress').innerText = `Question ${current+1} of ${numQuestions} | Score: ${score}`;
+      document.getElementById('voiceStatus').innerText = "🎙️ Listening...";
+
+      // Speak the question
+      speak(`What is ${q.displayA} times ${q.displayB}?`, () => {
+        startVoice();
+      });
     }
 
-    function submitAnswer() {
+    function submitAnswer(userAnswer) {
       const q = questions[current];
-      const userAnswer = parseInt(document.getElementById('answer').value);
 
       if (!isNaN(userAnswer) && userAnswer === q.answer) {
         score++;
@@ -179,7 +146,6 @@
       document.getElementById('result').classList.remove('hidden');
       document.getElementById('finalScore').innerText = `You scored ${score} out of ${numQuestions}.`;
 
-      // Show wrong answers summary
       const list = document.getElementById('wrongAnswers');
       list.innerHTML = "";
       if (wrongAnswers.length === 0) {
@@ -189,11 +155,50 @@
           list.innerHTML += `<li>${item.a} × ${item.b} = ${item.correct} (you answered: ${item.given})</li>`;
         });
       }
+
+      speak(`All done! You scored ${score} out of ${numQuestions}.`);
     }
 
     function restart() {
       document.getElementById('result').classList.add('hidden');
       document.getElementById('setup').classList.remove('hidden');
+    }
+
+    // 🎤 Voice Recognition (Web Speech API)
+    function startVoice() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert("Sorry, your browser doesn’t support speech recognition.");
+        return;
+      }
+
+      if (recognition) recognition.stop();
+      recognition = new webkitSpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.start();
+
+      recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript.trim();
+        const number = parseInt(transcript);
+        document.getElementById('voiceStatus').innerText = `You said: "${transcript}"`;
+        submitAnswer(number);
+      };
+
+      recognition.onerror = function() {
+        document.getElementById('voiceStatus').innerText = "⚠️ Couldn’t understand, try again.";
+        // Try again automatically
+        startVoice();
+      };
+    }
+
+    // 🔊 Text-to-speech
+    function speak(text, callback) {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "en-US";
+      utter.onend = callback;
+      speechSynthesis.speak(utter);
     }
   </script>
 </body>
