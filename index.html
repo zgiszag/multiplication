@@ -42,6 +42,15 @@
       font-weight: bold;
       margin-top: 20px;
     }
+    #wrongAnswers {
+      margin-top: 20px;
+      text-align: left;
+      display: inline-block;
+    }
+    #wrongAnswers li {
+      margin: 5px 0;
+      color: red;
+    }
   </style>
 </head>
 <body>
@@ -69,6 +78,8 @@
   <div id="result" class="hidden">
     <h2>All done!</h2>
     <p id="finalScore"></p>
+    <h3>Questions you got wrong:</h3>
+    <ul id="wrongAnswers"></ul>
     <button onclick="restart()">Try Again</button>
   </div>
 
@@ -86,6 +97,7 @@
     let questions = [];
     let current = 0;
     let score = 0;
+    let wrongAnswers = [];
 
     function startGame() {
       selectedTables = Array.from(document.querySelectorAll('#tables input:checked')).map(cb => parseInt(cb.value));
@@ -101,7 +113,6 @@
       for (let a of selectedTables) {
         for (let b = 1; b <= 12; b++) {
           if (selectedTables.includes(b)) {
-            // Ensure uniqueness: only one of (a,b) or (b,a)
             if (a <= b) {
               pool.push({a, b, answer: a * b});
             }
@@ -114,11 +125,12 @@
       // 🔹 Shuffle the pool
       pool = pool.sort(() => Math.random() - 0.5);
 
-      // 🔹 Pick the requested number of questions (or all if fewer available)
+      // 🔹 Pick the requested number of questions
       questions = pool.slice(0, numQuestions);
 
       current = 0;
       score = 0;
+      wrongAnswers = [];
 
       document.getElementById('setup').classList.add('hidden');
       document.getElementById('quiz').classList.remove('hidden');
@@ -128,22 +140,32 @@
     function showQuestion() {
       const q = questions[current];
 
-      // Randomize order of a and b when displaying
+      // Randomize order of a and b
       const flip = Math.random() < 0.5;
-      const displayA = flip ? q.a : q.b;
-      const displayB = flip ? q.b : q.a;
+      q.displayA = flip ? q.a : q.b;
+      q.displayB = flip ? q.b : q.a;
 
-      document.getElementById('question').innerText = `${displayA} × ${displayB} = ?`;
+      document.getElementById('question').innerText = `${q.displayA} × ${q.displayB} = ?`;
       document.getElementById('answer').value = '';
       document.getElementById('answer').focus();
       document.getElementById('progress').innerText = `Question ${current+1} of ${numQuestions} | Score: ${score}`;
     }
 
     function submitAnswer() {
+      const q = questions[current];
       const userAnswer = parseInt(document.getElementById('answer').value);
-      if (!isNaN(userAnswer) && userAnswer === questions[current].answer) {
+
+      if (!isNaN(userAnswer) && userAnswer === q.answer) {
         score++;
+      } else {
+        wrongAnswers.push({
+          a: q.displayA,
+          b: q.displayB,
+          correct: q.answer,
+          given: isNaN(userAnswer) ? "blank" : userAnswer
+        });
       }
+
       current++;
       if (current < numQuestions) {
         showQuestion();
@@ -156,6 +178,17 @@
       document.getElementById('quiz').classList.add('hidden');
       document.getElementById('result').classList.remove('hidden');
       document.getElementById('finalScore').innerText = `You scored ${score} out of ${numQuestions}.`;
+
+      // Show wrong answers summary
+      const list = document.getElementById('wrongAnswers');
+      list.innerHTML = "";
+      if (wrongAnswers.length === 0) {
+        list.innerHTML = "<li>None 🎉</li>";
+      } else {
+        wrongAnswers.forEach(item => {
+          list.innerHTML += `<li>${item.a} × ${item.b} = ${item.correct} (you answered: ${item.given})</li>`;
+        });
+      }
     }
 
     function restart() {
